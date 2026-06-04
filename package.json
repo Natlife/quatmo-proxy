@@ -1,0 +1,22 @@
+{
+  "name": "quatmo-proxy",
+  "version": "1.0.0",
+  "description": "Quatmo proxy",
+  "main": "src/index.ts",
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "start": "bun src/index.ts",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "hono": "^4.10.7",
+    "dotenv": "^16.4.5",
+    "ioredis": "^5.4.1",
+    "tiktoken": "^1.0.18"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.7",
+    "typescript": "^5.4.5"
+  }
+}
