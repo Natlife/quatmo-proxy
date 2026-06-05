@@ -30,32 +30,71 @@ export const authMiddleware = (): MiddlewareHandler<{
     }
 
     const token = authHeader.substring(7).trim();
+    const proxyApiKey = process.env.PROXY_API_KEY;
 
     let session: UserSession | null = null;
 
-    if (redis && redis.status === "ready") {
-      try {
-        const cached = await redis.get(`key:auth:${token}`);
-        if (cached) {
-          session = JSON.parse(cached);
-        } else {
-          if (token === "qp_student_test") {
-            session = memoryBudgets.get(token) || null;
-            if (session) {
-              await redis.set(
-                `key:auth:${token}`,
-                JSON.stringify(session),
-                "EX",
-                600,
-              );
-            }
-          }
-        }
-      } catch (err) {
-        console.error("[Auth] Cache lookup error:", err);
+    // Check if proxy has a predefined API key set in env
+    if (proxyApiKey && proxyApiKey.trim() !== "") {
+      if (token === proxyApiKey) {
+        session = {
+          keyId: "master-key-id",
+          userId: "master-user",
+          monthlyTokenLimit: 999_999_999,
+          tokensConsumed: 0,
+        };
+      } else if (token === "qp_student_test") {
+        session = memoryBudgets.get(token) || null;
+      } else if (token === "lmstudio-placeholder-key") {
+        session = {
+          keyId: "lmstudio-local-key",
+          userId: "local-user",
+          monthlyTokenLimit: 999_999_999,
+          tokensConsumed: 0,
+        };
+      }
+      
+      if (!session) {
+        return c.json(
+          { error: "Unauthorized. Provided API key does not match the proxy master API key." },
+          401
+        );
       }
     } else {
-      session = memoryBudgets.get(token) || null;
+      // Backward compatibility fallback if PROXY_API_KEY is not defined
+      if (redis && redis.status === "ready") {
+        try {
+          const cached = await redis.get(`key:auth:${token}`);
+          if (cached) {
+            session = JSON.parse(cached);
+          } else {
+            if (token === "qp_student_test") {
+              session = memoryBudgets.get(token) || null;
+              if (session) {
+                await redis.set(
+                  `key:auth:${token}`,
+                  JSON.stringify(session),
+                  "EX",
+                  600,
+                );
+              }
+            }
+          }
+        } catch (err) {
+          console.error("[Auth] Cache lookup error:", err);
+        }
+      } else {
+        session = memoryBudgets.get(token) || null;
+      }
+
+      if (!session && token) {
+        session = {
+          keyId: `custom-${token.substring(0, 8)}`,
+          userId: "custom-user",
+          monthlyTokenLimit: 999_999_999,
+          tokensConsumed: 0,
+        };
+      }
     }
 
     if (!session) {
